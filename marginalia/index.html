@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marginalia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<style>
+/* Layout: one reading column like a book page. The book being read is the running head;
+   questions sit under it like notes in a margin. Built for the Kindle's Chromium 80 browser:
+   no flex gap, no clamp(), no aspect-ratio, literal colour fallbacks before var().
+   Grays limited to levels 0, 5, 10 and 15 of the Kindle's 16-step scale. */
+:root {
+  --paper: #ffffff;
+  --ink: #000000;
+  --ink-soft: #555555;
+  --wash: #aaaaaa;
+  --font-read: "Literata", Georgia, "Times New Roman", serif;
+  --font-ui: "IBM Plex Mono", "Courier New", Courier, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #151515; --ink: #ececec; --ink-soft: #b4b4b4; --wash: #6a6a6a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --paper: #151515; --ink: #ececec; --ink-soft: #b4b4b4; --wash: #6a6a6a; color-scheme: dark; }
+
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: #ffffff; color: #000000; background: var(--paper); color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif; font-family: var(--font-read);
+  font-size: 19px; line-height: 1.55; -webkit-text-size-adjust: 100%;
+}
+.page { max-width: 40rem; margin: 0 auto; padding: 28px 16px 64px; }
+
+.ui, .eyebrow, .meta, button, .status, label, .token-count, .foot {
+  font-family: "Courier New", Courier, monospace; font-family: var(--font-ui);
+}
+.eyebrow { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* Running head */
+.head { border-bottom: 3px solid currentColor; padding-bottom: 16px; }
+.head-top { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
+.book-title { margin: 10px 0 2px; font-size: 1.875rem; line-height: 1.15; font-weight: 600; font-style: italic; text-wrap: balance; }
+.book-sub { margin: 0; color: #555555; color: var(--ink-soft); }
+.book-sub span + span:before { content: " \00b7  "; }
+
+/* Controls */
+button {
+  font-size: 0.875rem; font-weight: 600; letter-spacing: 0.03em;
+  color: #000000; background: #ffffff; color: var(--ink); background: var(--paper);
+  border: 2px solid currentColor; border-radius: 0; min-height: 48px; padding: 10px 18px; cursor: pointer;
+}
+button.primary { background: #000000; color: #ffffff; background: var(--ink); color: var(--paper); border-color: #000000; border-color: var(--ink); }
+button.link { border: 0; min-height: 40px; padding: 8px 0; text-decoration: underline; background: transparent; }
+button:disabled { border-style: dashed; cursor: default; }
+button:focus { outline: 3px solid currentColor; outline-offset: 3px; }
+button.primary:focus { outline-color: #000000; outline-color: var(--ink); }
+
+label { display: block; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin: 18px 0 6px; }
+input[type="text"], textarea {
+  display: block; width: 100%; box-sizing: border-box; border-radius: 0;
+  font: inherit; color: #000000; background: #ffffff; color: var(--ink); background: var(--paper);
+  border: 2px solid currentColor; padding: 10px 12px;
+}
+textarea { min-height: 7.5em; resize: vertical; }
+input:focus, textarea:focus { outline: 3px solid currentColor; outline-offset: 2px; }
+.row { margin-top: 14px; }
+.row button { margin-right: 10px; margin-bottom: 8px; }
+
+.status { min-height: 1.5em; margin: 10px 0 0; font-size: 0.875rem; }
+
+/* Panels */
+.panel { margin-top: 28px; }
+.panel-title { margin: 0 0 4px; font-size: 1.375rem; line-height: 1.25; font-weight: 600; }
+.panel p.help { margin: 6px 0 0; font-size: 0.9375rem; color: #555555; color: var(--ink-soft); max-width: 34em; }
+.boxed { border: 2px solid currentColor; padding: 16px; }
+.recent { margin: 14px 0 0; padding: 0; list-style: none; }
+.recent li { display: inline-block; margin: 0 8px 8px 0; }
+.recent button { min-height: 40px; padding: 6px 12px; font-family: Georgia, serif; font-family: var(--font-read); font-style: italic; font-weight: 400; letter-spacing: 0; font-size: 0.9375rem; }
+
+/* Notes list */
+.notes-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-top: 40px; border-bottom: 2px solid currentColor; padding-bottom: 6px; }
+.notes-head h2 { margin: 0 12px 0 0; font-size: 1.375rem; font-weight: 600; }
+.meta { font-size: 0.8125rem; color: #555555; color: var(--ink-soft); }
+.notes { list-style: none; margin: 0; padding: 0; }
+.note { padding: 18px 0 20px; border-bottom: 1px dotted currentColor; }
+.note-q { margin: 0; font-weight: 600; }
+.note .meta { display: block; margin-top: 4px; }
+.answer { margin-top: 12px; padding-left: 14px; border-left: 3px solid currentColor; white-space: pre-line; }
+.waiting { margin-top: 12px; padding: 10px 12px; border: 2px dashed #aaaaaa; border-color: var(--wash); font-size: 0.9375rem; color: #555555; color: var(--ink-soft); }
+.empty { margin: 16px 0 0; color: #555555; color: var(--ink-soft); }
+
+.token-count { font-size: 0.8125rem; margin-top: 6px; }
+#token { font-family: "Courier New", monospace; font-family: var(--font-ui); font-size: 1rem; letter-spacing: 0.04em; }
+
+.foot { margin-top: 48px; padding-top: 10px; border-top: 2px solid currentColor; font-size: 0.75rem; color: #555555; color: var(--ink-soft); }
+.foot p { margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Setup: shown until a token is saved -->
+  <section id="setup" hidden>
+    <p class="eyebrow">Marginalia · setup</p>
+    <h1 class="book-title">Connect to your question box</h1>
+    <p class="book-sub">Questions you ask here are saved to your private repository, marginalia-inbox. Claude checks it every hour and writes the answers back.</p>
+    <div class="panel boxed">
+      <label for="token">GitHub access token</label>
+      <input type="text" id="token" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="github_pat_…">
+      <p class="token-count" id="tokenCount">0 characters. Fine-grained tokens are usually 93.</p>
+      <div class="row"><button type="button" class="primary" id="saveToken">Save and test</button></div>
+      <p class="status" id="setupStatus" role="status"></p>
+    </div>
+  </section>
+
+  <!-- Main app -->
+  <div id="app" hidden>
+    <header class="head">
+      <div class="head-top">
+        <p class="eyebrow">Marginalia · now reading</p>
+        <button type="button" class="link" id="editBook">Change book</button>
+      </div>
+      <h1 class="book-title" id="bookTitle">No book yet</h1>
+      <p class="book-sub" id="bookSub"><span>Add the book you are reading to start asking</span></p>
+    </header>
+
+    <section class="panel boxed" id="bookEditor" hidden>
+      <h2 class="panel-title">The book</h2>
+      <p class="help">Claude keeps answers within the part you have read, so update how far you are as you go.</p>
+      <label for="bTitle">Title</label>
+      <input type="text" id="bTitle" autocomplete="off">
+      <label for="bAuthor">Author</label>
+      <input type="text" id="bAuthor" autocomplete="off">
+      <label for="bProgress">How far you have read</label>
+      <input type="text" id="bProgress" autocomplete="off" placeholder="Chapter 12, or page 140">
+      <div class="row"><button type="button" class="primary" id="saveBook">Save book</button><button type="button" id="cancelBook">Cancel</button></div>
+      <div id="recentWrap" hidden>
+        <p class="help">Or switch back to:</p>
+        <ul class="recent" id="recent"></ul>
+      </div>
+    </section>
+
+    <section class="panel" id="askPanel">
+      <label for="question">Your question</label>
+      <textarea id="question" placeholder="Who is the man at the window in chapter 3?"></textarea>
+      <div class="row"><button type="button" class="primary" id="send">Send question</button></div>
+      <p class="status" id="askStatus" role="status"></p>
+    </section>
+
+    <div class="notes-head">
+      <h2>Questions</h2>
+      <span class="meta" id="checked">Not checked yet</span>
+    </div>
+    <ul class="notes" id="notes"></ul>
+    <p class="empty" id="empty" hidden>No questions about this book yet.</p>
+    <div class="row"><button type="button" id="check">Check for answers</button></div>
+    <p class="status" id="checkStatus" role="status"></p>
+
+    <footer class="foot">
+      <p>Answers come from Claude through your private repository, benjamin-glass/marginalia-inbox, checked hourly.</p>
+      <p><button type="button" class="link" id="forget">Disconnect this Kindle</button></p>
+    </footer>
+  </div>
+</div>
+
+<script>
+/* Old-style JavaScript (ES5) on purpose: the Kindle browser lacks some newer syntax. */
+(function () {
+  var OWNER = 'benjamin-glass', REPO = 'marginalia-inbox';
+  var API = 'https://api.github.com/repos/' + OWNER + '/' + REPO;
+  var KEYS = { token: 'mg.token', book: 'mg.book', books: 'mg.books', sent: 'mg.sent', index: 'mg.index', checked: 'mg.checked' };
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function $(id) { return document.getElementById(id); }
+  function load(k, fallback) {
+    try { var v = localStorage.getItem(k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
+  }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function drop(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function trim(s) { return String(s || '').replace(/^\s+|\s+$/g, ''); }
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+  function keyOf(title) { return trim(title).toLowerCase(); }
+  function make(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+  function when(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function b64decode(s) { return decodeURIComponent(escape(atob(String(s).replace(/\s/g, '')))); }
+
+  var state = {
+    token: load(KEYS.token, ''),
+    book: load(KEYS.book, null),
+    books: load(KEYS.books, []),
+    sent: load(KEYS.sent, []),
+    index: load(KEYS.index, []),
+    checked: load(KEYS.checked, '')
+  };
+
+  function gh(path, method, body, raw) {
+    var headers = {
+      'Authorization': 'Bearer ' + state.token,
+      'Accept': raw ? 'application/vnd.github.raw' : 'application/vnd.github+json'
+    };
+    var init = { method: method || 'GET', headers: headers, cache: 'no-store' };
+    if (body) { headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+    return fetch(API + path, init);
+  }
+
+  /* ---------- Setup ---------- */
+  var tokenEl = $('token'), tokenCount = $('tokenCount'), setupStatus = $('setupStatus'), saveTokenBtn = $('saveToken');
+
+  function countToken() {
+    var n = tokenEl.value.replace(/\s/g, '').length;
+    tokenCount.textContent = n + (n === 1 ? ' character' : ' characters') + '. Fine-grained tokens are usually 93.';
+  }
+  tokenEl.addEventListener('input', countToken, false);
+
+  saveTokenBtn.onclick = function () {
+    var t = tokenEl.value.replace(/\s/g, '');
+    if (!t) { setupStatus.textContent = 'Type the token first.'; return; }
+    state.token = t;
+    saveTokenBtn.disabled = true;
+    setupStatus.textContent = 'Testing the token with GitHub…';
+    gh('', 'GET').then(function (res) {
+      if (res.status === 200) {
+        save(KEYS.token, t);
+        setupStatus.textContent = 'Connected.';
+        showApp();
+        checkAnswers(true);
+      } else if (res.status === 401) {
+        setupStatus.textContent = 'GitHub did not accept this token. Check it for a typo; letter case matters.';
+      } else if (res.status === 404 || res.status === 403) {
+        setupStatus.textContent = 'The token works, but it cannot see marginalia-inbox. Make sure you picked that repository when creating the token.';
+      } else {
+        setupStatus.textContent = 'GitHub answered with error ' + res.status + '. Try again in a minute.';
+      }
+    }, function () {
+      setupStatus.textContent = 'Could not reach GitHub. Check the Wi-Fi and try again.';
+    }).then(function () { saveTokenBtn.disabled = false; });
+  };
+
+  /* ---------- Book ---------- */
+  var editor = $('bookEditor');
+
+  function renderBook() {
+    var b = state.book;
+    var sub = $('bookSub');
+    sub.innerHTML = '';
+    if (b && b.title) {
+      $('bookTitle').textContent = b.title;
+      if (b.author) sub.appendChild(make('span', null, b.author));
+      sub.appendChild(make('span', null, b.progress ? 'read up to ' + b.progress : 'progress not set'));
+    } else {
+      $('bookTitle').textContent = 'No book yet';
+      sub.appendChild(make('span', null, 'Add the book you are reading to start asking'));
+    }
+  }
+
+  function openEditor() {
+    var b = state.book || {};
+    $('bTitle').value = b.title || '';
+    $('bAuthor').value = b.author || '';
+    $('bProgress').value = b.progress || '';
+    var list = $('recent');
+    list.innerHTML = '';
+    var shown = 0;
+    for (var i = 0; i < state.books.length; i++) {
+      var r = state.books[i];
+      if (b.title && keyOf(r.title) === keyOf(b.title)) continue;
+      var li = make('li');
+      var btn = make('button', null, r.title);
+      btn.type = 'button';
+      btn.setAttribute('data-i', String(i));
+      btn.onclick = function () { pickBook(state.books[Number(this.getAttribute('data-i'))]); };
+      li.appendChild(btn);
+      list.appendChild(li);
+      shown++;
+    }
+    $('recentWrap').hidden = shown === 0;
+    editor.hidden = false;
+    $('bTitle').focus();
+  }
+
+  function pickBook(b) {
+    state.book = { title: b.title, author: b.author || '', progress: b.progress || '' };
+    remember(state.book);
+    editor.hidden = true;
+    renderBook();
+    renderNotes();
+  }
+
+  function remember(b) {
+    var out = [b];
+    for (var i = 0; i < state.books.length; i++) {
+      if (keyOf(state.books[i].title) !== keyOf(b.title)) out.push(state.books[i]);
+    }
+    state.books = out.slice(0, 8);
+    save(KEYS.books, state.books);
+    save(KEYS.book, b);
+  }
+
+  $('editBook').onclick = openEditor;
+  $('cancelBook').onclick = function () { editor.hidden = true; };
+  $('saveBook').onclick = function () {
+    var t = trim($('bTitle').value);
+    if (!t) { $('bTitle').focus(); return; }
+    pickBook({ title: t, author: trim($('bAuthor').value), progress: trim($('bProgress').value) });
+  };
+
+  /* ---------- Asking ---------- */
+  var qEl = $('question'), sendBtn = $('send'), askStatus = $('askStatus');
+
+  function makeId(d) {
+    var s = d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + '-' +
+      pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds());
+    return s + '-' + Math.random().toString(36).slice(2, 6);
+  }
+
+  sendBtn.onclick = function () {
+    var q = trim(qEl.value);
+    if (!state.book || !state.book.title) { askStatus.textContent = 'Add the book you are reading first.'; openEditor(); return; }
+    if (!q) { askStatus.textContent = 'Type a question first.'; qEl.focus(); return; }
+    var now = new Date();
+    var item = {
+      id: makeId(now),
+      asked_at: now.toISOString(),
+      book: { title: state.book.title, author: state.book.author || '' },
+      progress: state.book.progress || '',
+      question: q
+    };
+    sendBtn.disabled = true;
+    askStatus.textContent = 'Sending…';
+    gh('/contents/questions/' + item.id + '.json', 'PUT', {
+      message: 'Question about ' + item.book.title,
+      content: b64encode(JSON.stringify(item, null, 2))
+    }).then(function (res) {
+      if (res.status === 201 || res.status === 200) {
+        state.sent.push(item);
+        save(KEYS.sent, state.sent);
+        qEl.value = '';
+        askStatus.textContent = 'Sent. Claude checks for new questions every hour.';
+        renderNotes();
+      } else if (res.status === 401) {
+        askStatus.textContent = 'GitHub no longer accepts the saved token. Disconnect and enter a new one.';
+      } else {
+        askStatus.textContent = 'GitHub refused the question (error ' + res.status + '). Your text is still here; try again.';
+      }
+    }, function () {
+      askStatus.textContent = 'Could not reach GitHub. Your text is still here; check the Wi-Fi and try again.';
+    }).then(function () { sendBtn.disabled = false; });
+  };
+
+  /* ---------- Answers ---------- */
+  var checkBtn = $('check'), checkStatus = $('checkStatus');
+
+  function answeredIds() {
+    var seen = {};
+    for (var i = 0; i < state.index.length; i++) {
+      if (state.index[i].answer) seen[state.index[i].id] = true;
+    }
+    return seen;
+  }
+
+  function checkAnswers(quiet) {
+    if (!state.token) return;
+    var before = answeredIds();
+    checkBtn.disabled = true;
+    if (!quiet) checkStatus.textContent = 'Checking…';
+    gh('/contents/index.json', 'GET', null, true).then(function (res) {
+      if (res.status === 404) return { entries: [] };
+      if (res.status === 401) throw new Error('token');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (data) {
+      if (data && data.content && data.encoding === 'base64') data = JSON.parse(b64decode(data.content));
+      state.index = (data && data.entries) ? data.entries : [];
+      save(KEYS.index, state.index);
+      var now = answeredIds(), fresh = 0, keep = [];
+      for (var id in now) if (now.hasOwnProperty(id) && !before[id]) fresh++;
+      for (var i = 0; i < state.sent.length; i++) if (!now[state.sent[i].id]) keep.push(state.sent[i]);
+      state.sent = keep;
+      save(KEYS.sent, state.sent);
+      state.checked = new Date().toISOString();
+      save(KEYS.checked, state.checked);
+      renderNotes();
+      checkStatus.textContent = fresh ? (fresh === 1 ? '1 new answer.' : fresh + ' new answers.') : (quiet ? '' : 'No new answers yet.');
+    }, function (err) {
+      checkStatus.textContent = err && err.message === 'token'
+        ? 'GitHub no longer accepts the saved token. Disconnect and enter a new one.'
+        : 'Could not check for answers. Check the Wi-Fi and try again.';
+    }).then(function () { checkBtn.disabled = false; });
+  }
+  checkBtn.onclick = function () { checkAnswers(false); };
+
+  function renderNotes() {
+    var list = $('notes');
+    list.innerHTML = '';
+    $('checked').textContent = state.checked ? 'Checked ' + when(state.checked) : 'Not checked yet';
+    var bk = state.book && state.book.title ? keyOf(state.book.title) : null;
+    var items = [], ids = {}, i;
+    for (i = 0; i < state.index.length; i++) {
+      var e = state.index[i];
+      if (bk && e.book && keyOf(e.book.title) === bk) { items.push(e); ids[e.id] = true; }
+    }
+    for (i = 0; i < state.sent.length; i++) {
+      var s = state.sent[i];
+      if (bk && !ids[s.id] && keyOf(s.book.title) === bk) items.push(s);
+    }
+    items.sort(function (a, b) { return a.asked_at < b.asked_at ? 1 : a.asked_at > b.asked_at ? -1 : 0; });
+    $('empty').hidden = items.length > 0;
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      var li = make('li', 'note');
+      li.appendChild(make('p', 'note-q', it.question));
+      li.appendChild(make('span', 'meta', 'Asked ' + when(it.asked_at) + (it.progress ? ' · read up to ' + it.progress : '')));
+      if (it.answer) {
+        li.appendChild(make('div', 'answer', it.answer));
+      } else {
+        li.appendChild(make('div', 'waiting', 'Waiting for Claude. Questions are picked up once an hour.'));
+      }
+      list.appendChild(li);
+    }
+  }
+
+  /* ---------- Start ---------- */
+  $('forget').onclick = function () {
+    drop(KEYS.token);
+    state.token = '';
+    tokenEl.value = '';
+    countToken();
+    showSetup();
+  };
+
+  function showSetup() { $('app').hidden = true; $('setup').hidden = false; }
+  function showApp() {
+    $('setup').hidden = true;
+    $('app').hidden = false;
+    renderBook();
+    renderNotes();
+    if (!state.book) openEditor();
+  }
+
+  if (state.token) { showApp(); checkAnswers(true); } else { showSetup(); }
+})();
+</script>
+</body>
+</html>
