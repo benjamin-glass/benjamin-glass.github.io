@@ -106,7 +106,7 @@ input:focus, textarea:focus { outline: 3px solid currentColor; outline-offset: 2
   <section id="setup" hidden>
     <p class="eyebrow">Marginalia · setup</p>
     <h1 class="book-title">Connect to your question box</h1>
-    <p class="book-sub">Questions you ask here are saved to your private repository, marginalia-inbox. Claude checks it every hour and writes the answers back.</p>
+    <p class="book-sub">Questions you ask here are saved to your private repository, marginalia-inbox. Claude picks them up and writes the answers back.</p>
     <div class="panel boxed">
       <label for="token">GitHub access token</label>
       <input type="text" id="token" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="github_pat_…">
@@ -160,7 +160,7 @@ input:focus, textarea:focus { outline: 3px solid currentColor; outline-offset: 2
     <p class="status" id="checkStatus" role="status"></p>
 
     <footer class="foot">
-      <p>Answers come from Claude through your private repository, benjamin-glass/marginalia-inbox, checked hourly.</p>
+      <p>Questions and answers live in your private repository, benjamin-glass/marginalia-inbox.</p>
       <p><button type="button" class="link" id="forget">Disconnect this Kindle</button></p>
     </footer>
   </div>
@@ -240,7 +240,7 @@ input:focus, textarea:focus { outline: 3px solid currentColor; outline-offset: 2
       } else if (res.status === 401) {
         setupStatus.textContent = 'GitHub did not accept this token. Check it for a typo; letter case matters.';
       } else if (res.status === 404 || res.status === 403) {
-        setupStatus.textContent = 'The token works, but it cannot see marginalia-inbox. Make sure you picked that repository when creating the token.';
+        setupStatus.textContent = 'The token works, but it cannot see a repository named exactly marginalia-inbox. Check the name on GitHub, and that the token was given access to it.';
       } else {
         setupStatus.textContent = 'GitHub answered with error ' + res.status + '. Try again in a minute.';
       }
@@ -340,18 +340,31 @@ input:focus, textarea:focus { outline: 3px solid currentColor; outline-offset: 2
     };
     sendBtn.disabled = true;
     askStatus.textContent = 'Sending…';
-    gh('/contents/questions/' + item.id + '.json', 'PUT', {
-      message: 'Question about ' + item.book.title,
-      content: b64encode(JSON.stringify(item, null, 2))
+    /* Each question becomes a GitHub issue, which can start Claude straight away.
+       If the token lacks issue access, fall back to saving a file in questions/. */
+    var title = item.question.length > 80 ? item.question.slice(0, 77) + '…' : item.question;
+    var body = 'Book: ' + item.book.title + (item.book.author ? ', by ' + item.book.author : '') + '\n' +
+      'Read up to: ' + (item.progress || 'not given') + '\n\n' + item.question + '\n\n' +
+      '<!-- marginalia ' + JSON.stringify(item) + ' -->';
+    gh('/issues', 'POST', { title: title, body: body }).then(function (res) {
+      if (res.status === 403 || res.status === 404 || res.status === 410) {
+        return gh('/contents/questions/' + item.id + '.json', 'PUT', {
+          message: 'Question about ' + item.book.title,
+          content: b64encode(JSON.stringify(item, null, 2))
+        });
+      }
+      return res;
     }).then(function (res) {
       if (res.status === 201 || res.status === 200) {
         state.sent.push(item);
         save(KEYS.sent, state.sent);
         qEl.value = '';
-        askStatus.textContent = 'Sent. Claude checks for new questions every hour.';
+        askStatus.textContent = 'Sent. Tap Check for answers in a few minutes.';
         renderNotes();
       } else if (res.status === 401) {
         askStatus.textContent = 'GitHub no longer accepts the saved token. Disconnect and enter a new one.';
+      } else if (res.status === 403 || res.status === 404) {
+        askStatus.textContent = 'The token is not allowed to file questions. Give it Issues: Read and write on GitHub, then try again. Your text is still here.';
       } else {
         askStatus.textContent = 'GitHub refused the question (error ' + res.status + '). Your text is still here; try again.';
       }
@@ -426,7 +439,7 @@ input:focus, textarea:focus { outline: 3px solid currentColor; outline-offset: 2
       if (it.answer) {
         li.appendChild(make('div', 'answer', it.answer));
       } else {
-        li.appendChild(make('div', 'waiting', 'Waiting for Claude. Questions are picked up once an hour.'));
+        li.appendChild(make('div', 'waiting', 'Waiting for Claude. Tap Check for answers in a few minutes.'));
       }
       list.appendChild(li);
     }
