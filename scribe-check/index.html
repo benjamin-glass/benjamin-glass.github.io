@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scribe Browser Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap">
+<style>
+[hidden] { display: none !important; }
+body { margin: 0; }
+img { max-width: 100%; }
+/* Layout: one left-aligned column printed like a calibration sheet. Conservative CSS only
+   (no grid, no flex gap, literal fallbacks before var()) so an older e-ink browser still renders it. */
+:root {
+  --paper: #ffffff;
+  --ink: #000000;
+  --ink-soft: #333333;
+  --ink-faint: #555555;
+  --font-read: "Literata", Georgia, "Times New Roman", serif;
+  --font-data: "IBM Plex Mono", "Courier New", Courier, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #151515; --ink: #ececec; --ink-soft: #c9c9c9; --ink-faint: #a0a0a0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #151515; --ink: #ececec; --ink-soft: #c9c9c9; --ink-faint: #a0a0a0;
+  color-scheme: dark;
+}
+
+body {
+  background: #ffffff; color: #000000;
+  background: var(--paper); color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-read);
+  font-size: 17px; line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.sheet {
+  max-width: 44rem; margin: 0 auto;
+  padding-top: 28px; padding-bottom: 56px;
+  padding-left: 16px; padding-right: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.mono, .eyebrow, .score, .code, .block-score, .row-hint, .badge, .info-value, .ua, .pad-readout, .wedge-scale, .foot, .errors, button {
+  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-data);
+}
+.eyebrow {
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin: 0;
+}
+.masthead { border-bottom: 3px solid currentColor; padding-bottom: 20px; }
+h1 {
+  font-size: 2.25rem; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em;
+  margin: 10px 0 12px; text-wrap: balance;
+}
+.lede { margin: 0; max-width: 36em; color: #333333; color: var(--ink-soft); }
+
+/* Report panel, framed with crop marks like a printer's test sheet */
+.report { position: relative; border: 3px solid currentColor; padding: 20px; margin: 40px 12px 8px; }
+.crop { position: absolute; width: 10px; height: 10px; }
+.crop-tl { top: -16px; left: -16px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; }
+.crop-tr { top: -16px; right: -16px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; }
+.crop-bl { bottom: -16px; left: -16px; border-right: 2px solid currentColor; border-top: 2px solid currentColor; }
+.crop-br { bottom: -16px; right: -16px; border-left: 2px solid currentColor; border-top: 2px solid currentColor; }
+.report-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; }
+.report-head .eyebrow { margin-right: 12px; }
+.score { margin: 0; font-size: 0.875rem; font-weight: 600; }
+.code {
+  font-size: 1.875rem; font-weight: 600; letter-spacing: 0.04em; line-height: 1.25;
+  margin: 14px 0 10px; word-wrap: break-word; overflow-wrap: break-word;
+}
+.note { margin: 0 0 16px; font-size: 0.9375rem; color: #333333; color: var(--ink-soft); max-width: 34em; }
+
+button {
+  font-size: 0.875rem; font-weight: 600; letter-spacing: 0.04em;
+  color: #000000; background: #ffffff;
+  color: var(--ink); background: var(--paper);
+  border: 2px solid currentColor; border-radius: 0;
+  min-height: 48px; padding: 10px 18px; cursor: pointer;
+}
+button:focus { outline: 3px solid currentColor; outline-offset: 3px; }
+button:active { background: #000000; color: #ffffff; background: var(--ink); color: var(--paper); }
+
+.errors { border: 3px solid currentColor; padding: 12px; margin-top: 20px; font-size: 0.8125rem; }
+.errors p { margin: 0 0 6px; }
+
+/* Test sections */
+.block { margin-top: 44px; }
+.block-head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+  border-bottom: 2px solid currentColor; padding-bottom: 6px;
+}
+.block-head h2 { font-size: 1.375rem; line-height: 1.2; font-weight: 600; margin: 0 12px 0 0; text-wrap: balance; }
+.block-score { font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.block-intro { margin: 10px 0 2px; font-size: 0.9375rem; max-width: 36em; color: #333333; color: var(--ink-soft); }
+
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px dotted currentColor;
+}
+.row-text { -webkit-box-flex: 1; flex: 1 1 auto; min-width: 0; padding-right: 12px; }
+.row-label { display: block; }
+.row-hint {
+  display: block; font-size: 0.8125rem; color: #555555; color: var(--ink-faint);
+  word-wrap: break-word; overflow-wrap: break-word;
+}
+.badge {
+  flex: 0 0 auto; width: 3.75em; padding: 3px 0; text-align: center;
+  font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 2px solid currentColor;
+}
+.badge-no { background: #000000; color: #ffffff; background: var(--ink); color: var(--paper); border-color: #000000; border-color: var(--ink); }
+.badge-na { border-style: dashed; }
+
+.info-value {
+  flex: 0 1 auto; min-width: 0; text-align: right; font-size: 0.875rem; font-weight: 600;
+  font-variant-numeric: tabular-nums; word-wrap: break-word; overflow-wrap: break-word;
+}
+.info .row-text { padding-right: 16px; }
+.ua {
+  margin: 14px 0 0; padding: 10px 12px; border: 1px dashed currentColor;
+  font-size: 0.8125rem; line-height: 1.45; word-break: break-all;
+}
+
+/* Gray step wedge: literal grays on purpose, it is a test pattern */
+.wedge { display: flex; height: 64px; margin-top: 16px; border: 2px solid currentColor; }
+.wedge span { display: block; flex: 1 1 0px; }
+.wedge-scale { display: flex; margin-top: 4px; font-size: 0.6875rem; }
+.wedge-scale span { display: block; flex: 1 1 0px; text-align: center; }
+
+/* Pen pad */
+.pad-frame { margin-top: 16px; border: 2px solid currentColor; }
+#pad { display: block; width: 100%; height: 240px; touch-action: none; -ms-touch-action: none; cursor: crosshair; }
+.pad-readout { margin: 12px 0 14px; font-size: 0.875rem; line-height: 1.6; }
+.pad-readout p { margin: 0; }
+
+.foot {
+  margin-top: 56px; padding-top: 10px; border-top: 2px solid currentColor;
+  font-size: 0.75rem; color: #555555; color: var(--ink-faint);
+}
+.foot p { margin: 0 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+  <header class="masthead">
+    <p class="eyebrow">E-ink browser test sheet · v1</p>
+    <h1>Scribe Browser Check</h1>
+    <p class="lede">Open this page in your Kindle Scribe's browser. It checks which web features work there and turns the results into a short report code you can send back to Claude.</p>
+  </header>
+
+  <div id="errors" class="errors" hidden></div>
+
+  <section class="report" aria-labelledby="report-title">
+    <span class="crop crop-tl" aria-hidden="true"></span>
+    <span class="crop crop-tr" aria-hidden="true"></span>
+    <span class="crop crop-bl" aria-hidden="true"></span>
+    <span class="crop crop-br" aria-hidden="true"></span>
+    <div class="report-head">
+      <p class="eyebrow" id="report-title">Report code</p>
+      <p class="score" id="score">Scripts have not run</p>
+    </div>
+    <p class="code" id="code">NO SCRIPTS</p>
+    <p class="note" id="codeNote">If this still says no scripts, the browser blocked or failed the page's JavaScript. Tell Claude that. It is a useful result too.</p>
+    <button type="button" id="copy">Copy code</button>
+  </section>
+
+  <section class="block" aria-labelledby="h-info">
+    <div class="block-head"><h2 id="h-info">Browser and screen</h2></div>
+    <ul class="rows info" id="info"></ul>
+    <p class="ua" id="ua">User agent: not read yet</p>
+  </section>
+
+  <section class="block" aria-labelledby="h-js">
+    <div class="block-head"><h2 id="h-js">JavaScript language</h2><span class="block-score" id="score-js"></span></div>
+    <p class="block-intro">Newer ways of writing JavaScript, the language that makes pages interactive. Where this says No, apps for this browser need the older style.</p>
+    <ul class="rows" id="list-js"></ul>
+  </section>
+
+  <section class="block" aria-labelledby="h-web">
+    <div class="block-head"><h2 id="h-web">Web features</h2><span class="block-score" id="score-web"></span></div>
+    <p class="block-intro">Built-in tools a page can use, such as saving data between visits or reading pen input.</p>
+    <ul class="rows" id="list-web"></ul>
+  </section>
+
+  <section class="block" aria-labelledby="h-css">
+    <div class="block-head"><h2 id="h-css">Layout and styling</h2><span class="block-score" id="score-css"></span></div>
+    <p class="block-intro">CSS features, the rules that arrange and style a page.</p>
+    <ul class="rows" id="list-css"></ul>
+  </section>
+
+  <section class="block" aria-labelledby="h-gray">
+    <div class="block-head"><h2 id="h-gray">Gray levels</h2><span class="block-score">16 steps</span></div>
+    <p class="block-intro">Kindle screens are usually described as showing 16 shades of gray. Count how many separate steps you can see. Steps that blend into their neighbors are too close to use as different colors in an app.</p>
+    <div class="wedge" aria-label="Sixteen gray steps from black to white">
+      <span style="background:#000000"></span><span style="background:#111111"></span><span style="background:#222222"></span><span style="background:#333333"></span><span style="background:#444444"></span><span style="background:#555555"></span><span style="background:#666666"></span><span style="background:#777777"></span><span style="background:#888888"></span><span style="background:#999999"></span><span style="background:#aaaaaa"></span><span style="background:#bbbbbb"></span><span style="background:#cccccc"></span><span style="background:#dddddd"></span><span style="background:#eeeeee"></span><span style="background:#ffffff"></span>
+    </div>
+    <div class="wedge-scale" aria-hidden="true">
+      <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-pad">
+    <div class="block-head"><h2 id="h-pad">Pen and touch</h2></div>
+    <p class="block-intro">Draw in the box with the pen, then with a finger. The readout shows how the browser reports each one, including pen pressure, and the report code above picks up the result.</p>
+    <div class="pad-frame"><canvas id="pad" aria-label="Drawing test area"></canvas></div>
+    <div class="pad-readout" id="padOut"><p>Nothing drawn yet.</p></div>
+    <button type="button" id="padClear">Clear drawing</button>
+  </section>
+
+  <footer class="foot">
+    <p>Sheet v1 · 64 checks in a fixed order, so the report code can be decoded later.</p>
+    <p>Code format: engine and version, then the checks packed into letters, then pen results after the slash.</p>
+  </footer>
+</div>
+
+<script>
+/* Written in old-style JavaScript (ES5) on purpose, so this script itself runs on older browsers.
+   Newer syntax is only tested inside strings, where a failure is caught instead of stopping the page. */
+(function () {
+  var errorsEl = document.getElementById('errors');
+  var probing = false;
+
+  window.onerror = function (msg, src, line) {
+    if (probing || /syntax/i.test(String(msg))) return true;
+    showError('Script error: ' + msg + (line ? ' (line ' + line + ')' : ''));
+    return false;
+  };
+
+  function showError(text) {
+    try {
+      errorsEl.hidden = false;
+      var p = document.createElement('p');
+      p.textContent = text;
+      errorsEl.appendChild(p);
+    } catch (e) {}
+  }
+
+  function byId(id) { return document.getElementById(id); }
+
+  function make(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+
+  function mq(q) {
+    try { return !!(window.matchMedia && window.matchMedia(q).matches); } catch (e) { return false; }
+  }
+
+  function cssOk(prop, val) {
+    try {
+      if (window.CSS && typeof window.CSS.supports === 'function') return window.CSS.supports(prop, val);
+    } catch (e) {}
+    try {
+      var d = document.createElement('div');
+      d.style.setProperty(prop, val);
+      return d.style.getPropertyValue(prop) !== '';
+    } catch (e2) { return false; }
+  }
+
+  function selectorOk(sel) {
+    try { document.querySelector(sel); return true; } catch (e) { return false; }
+  }
+
+  function storageOk(name) {
+    try {
+      var s = window[name];
+      s.setItem('__probe', '1');
+      var ok = s.getItem('__probe') === '1';
+      s.removeItem('__probe');
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  function flexGapOk() {
+    var c = document.createElement('div');
+    c.style.display = 'flex';
+    c.style.flexDirection = 'column';
+    c.style.rowGap = '1px';
+    c.style.position = 'absolute';
+    c.style.visibility = 'hidden';
+    c.appendChild(document.createElement('div'));
+    c.appendChild(document.createElement('div'));
+    document.body.appendChild(c);
+    var ok = c.scrollHeight === 1;
+    document.body.removeChild(c);
+    return ok;
+  }
+
+  /* How newer syntax gets tested: the Function constructor if allowed, else injected script tags. */
+  var syntaxMode = 'none';
+  try { if (new Function('return 1')() === 1) syntaxMode = 'function'; } catch (e) {}
+  window.__probe = {};
+  if (syntaxMode === 'none') {
+    try {
+      probing = true;
+      var ctl = document.createElement('script');
+      ctl.text = 'window.__probe.control = true;';
+      document.head.appendChild(ctl);
+      document.head.removeChild(ctl);
+    } catch (e) {}
+    probing = false;
+    if (window.__probe.control === true) syntaxMode = 'script';
+  }
+
+  function runSyntax(i, src) {
+    if (syntaxMode === 'function') return new Function(src)() === true;
+    if (syntaxMode === 'script') {
+      probing = true;
+      try {
+        var s = document.createElement('script');
+        s.text = 'window.__probe["t' + i + '"] = (function () {' + src + '})();';
+        document.head.appendChild(s);
+        document.head.removeChild(s);
+      } catch (e) {}
+      probing = false;
+      return window.__probe['t' + i] === true;
+    }
+    return null;
+  }
+
+  var de = document.documentElement;
+
+  /* Fixed order: each entry is one bit of the report code. Do not reorder within v1. */
+  var T = [
+    { g: 'js', label: 'let and const', hint: 'let x = 1', src: 'let a = 1; const b = 2; return a + b === 3;' },
+    { g: 'js', label: 'Arrow functions', hint: 'x => x * 2', src: 'var f = (x) => x * 2; return f(2) === 4;' },
+    { g: 'js', label: 'Template strings', hint: '`Hello ${name}`', src: 'var x = 1; return `a${x}` === "a1";' },
+    { g: 'js', label: 'Classes', hint: 'class Note {}', src: 'class A { m() { return 1; } } return new A().m() === 1;' },
+    { g: 'js', label: 'Destructuring', hint: 'var { a, b } = obj', src: 'var { a, b } = { a: 1, b: 2 }; var [c] = [3]; return a + b + c === 6;' },
+    { g: 'js', label: 'Spread and rest', hint: 'f(...list)', src: 'function f(...r) { return r.length; } return f(...[1, 2, 3]) === 3;' },
+    { g: 'js', label: 'Default parameters', hint: 'function f(a = 2)', src: 'function f(a = 2) { return a; } return f() === 2;' },
+    { g: 'js', label: 'for…of loops', hint: 'for (x of list)', src: 'var s = 0; for (var v of [1, 2]) { s += v; } return s === 3;' },
+    { g: 'js', label: 'Generators', hint: 'function* g()', src: 'function* g() { yield 1; } return g().next().value === 1;' },
+    { g: 'js', label: 'async and await', hint: 'await load()', src: 'async function f() { var x = await 1; return x; } return typeof f === "function";' },
+    { g: 'js', label: 'Object spread', hint: '{ ...a, b: 2 }', src: 'var a = { x: 1 }; var b = { ...a, y: 2 }; return b.x + b.y === 3;' },
+    { g: 'js', label: 'Optional chaining', hint: 'a?.b', src: 'var o = null; return o?.x === undefined;' },
+    { g: 'js', label: 'Nullish coalescing', hint: 'a ?? b', src: 'var o = null; return (o ?? 5) === 5;' },
+    { g: 'js', label: 'Logical assignment', hint: 'a ||= b', src: 'var a = 0; a ||= 3; return a === 3;' },
+    { g: 'js', label: 'Private class fields', hint: '#count', src: 'class A { #x = 1; g() { return this.#x; } } return new A().g() === 1;' },
+    { g: 'js', label: 'BigInt', hint: '10n', src: 'return 2n * 3n === 6n;' },
+    { g: 'js', label: 'Array flat and includes', hint: '.flat() .includes()', src: 'return [1, [2]].flat().includes(2);' },
+    { g: 'js', label: 'Array at()', hint: 'list.at(-1)', src: 'return [1, 2, 3].at(-1) === 3;' },
+    { g: 'js', label: 'Object.fromEntries', hint: 'Object.fromEntries(pairs)', src: 'return Object.fromEntries(Object.entries({ a: 1 })).a === 1;' },
+    { g: 'js', label: 'Newer string helpers', hint: '.padStart() .replaceAll()', src: 'return "a".padStart(2, "b") === "ba" && "aa".replaceAll("a", "b") === "bb";' },
+    { g: 'js', label: 'structuredClone', hint: 'deep copies of data', fn: function () { return typeof window.structuredClone === 'function'; } },
+    { g: 'js', label: 'ES modules', hint: '<script type="module">', fn: function () { return 'noModule' in document.createElement('script'); } },
+
+    { g: 'web', label: 'Promises', hint: 'results that arrive later', fn: function () { return typeof window.Promise === 'function' && typeof window.Promise.resolve === 'function'; } },
+    { g: 'web', label: 'fetch()', hint: 'loading data', fn: function () { return typeof window.fetch === 'function'; } },
+    { g: 'web', label: 'XMLHttpRequest', hint: 'older way to load data', fn: function () { return typeof window.XMLHttpRequest !== 'undefined'; } },
+    { g: 'web', label: 'Local storage', hint: 'saves between visits', fn: function () { return storageOk('localStorage'); } },
+    { g: 'web', label: 'Session storage', hint: 'saves until the tab closes', fn: function () { return storageOk('sessionStorage'); } },
+    { g: 'web', label: 'IndexedDB', hint: 'larger saved data', fn: function () { return !!window.indexedDB; } },
+    { g: 'web', label: 'Cookies', hint: 'navigator.cookieEnabled', fn: function () { return !!navigator.cookieEnabled; } },
+    { g: 'web', label: 'Canvas drawing', hint: 'pixels and pen strokes', fn: function () { var c = document.createElement('canvas'); return !!(c.getContext && c.getContext('2d')); } },
+    { g: 'web', label: 'Inline SVG', hint: 'sharp vector shapes', fn: function () { return !!(document.createElementNS && document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGRect); } },
+    { g: 'web', label: 'Pointer events', hint: 'pen and touch input', fn: function () { return !!window.PointerEvent; } },
+    { g: 'web', label: 'Touch events', hint: 'older touch input', fn: function () { return 'ontouchstart' in window; } },
+    { g: 'web', label: 'Media queries in scripts', hint: 'matchMedia', fn: function () { return typeof window.matchMedia === 'function'; } },
+    { g: 'web', label: 'Animation frames', hint: 'requestAnimationFrame', fn: function () { return typeof window.requestAnimationFrame === 'function'; } },
+    { g: 'web', label: 'Web workers', hint: 'background tasks', fn: function () { return typeof window.Worker !== 'undefined'; } },
+    { g: 'web', label: 'Service workers', hint: 'working offline', fn: function () { return 'serviceWorker' in navigator; } },
+    { g: 'web', label: 'WebSocket', hint: 'live connections', fn: function () { return typeof window.WebSocket !== 'undefined'; } },
+    { g: 'web', label: 'Clipboard', hint: 'copy buttons', fn: function () { return !!(navigator.clipboard && navigator.clipboard.writeText); } },
+    { g: 'web', label: 'Web Audio', hint: 'sound', fn: function () { return !!(window.AudioContext || window.webkitAudioContext); } },
+    { g: 'web', label: 'Speech synthesis', hint: 'reading aloud', fn: function () { return !!window.speechSynthesis; } },
+    { g: 'web', label: 'Intl formatting', hint: 'dates and numbers', fn: function () { return typeof window.Intl === 'object' && typeof window.Intl.DateTimeFormat === 'function'; } },
+    { g: 'web', label: 'TextEncoder', hint: 'text to bytes', fn: function () { return typeof window.TextEncoder !== 'undefined'; } },
+    { g: 'web', label: 'Secure random numbers', hint: 'crypto.getRandomValues', fn: function () { return !!(window.crypto && window.crypto.getRandomValues); } },
+    { g: 'web', label: 'URL parsing', hint: 'URL and URLSearchParams', fn: function () { return typeof window.URL !== 'undefined' && typeof window.URLSearchParams !== 'undefined'; } },
+    { g: 'web', label: 'ResizeObserver', hint: 'react to size changes', fn: function () { return typeof window.ResizeObserver !== 'undefined'; } },
+    { g: 'web', label: 'IntersectionObserver', hint: 'notice what is on screen', fn: function () { return typeof window.IntersectionObserver !== 'undefined'; } },
+    { g: 'web', label: 'MutationObserver', hint: 'notice page changes', fn: function () { return typeof window.MutationObserver !== 'undefined'; } },
+    { g: 'web', label: 'Fullscreen', hint: 'hide the browser bar', fn: function () { return !!(de.requestFullscreen || de.webkitRequestFullscreen); } },
+    { g: 'web', label: 'Font loading API', hint: 'document.fonts', fn: function () { return !!document.fonts; } },
+
+    { g: 'css', label: 'CSS.supports()', hint: 'feature checks', fn: function () { return !!(window.CSS && window.CSS.supports); } },
+    { g: 'css', label: 'Custom properties', hint: 'var(--ink)', fn: function () { return cssOk('--probe', '0'); } },
+    { g: 'css', label: 'Flexbox', hint: 'display: flex', fn: function () { return cssOk('display', 'flex'); } },
+    { g: 'css', label: 'Flex gap', hint: 'spacing in flex rows, measured', fn: flexGapOk },
+    { g: 'css', label: 'Grid', hint: 'display: grid', fn: function () { return cssOk('display', 'grid'); } },
+    { g: 'css', label: 'Sticky headers', hint: 'position: sticky', fn: function () { return cssOk('position', 'sticky') || cssOk('position', '-webkit-sticky'); } },
+    { g: 'css', label: 'aspect-ratio', hint: 'fixed-shape boxes', fn: function () { return cssOk('aspect-ratio', '1 / 1'); } },
+    { g: 'css', label: 'calc()', hint: 'calc(100% - 2rem)', fn: function () { return cssOk('width', 'calc(1px + 1px)'); } },
+    { g: 'css', label: 'clamp()', hint: 'clamp(1rem, 4vw, 2rem)', fn: function () { return cssOk('width', 'clamp(1px, 2px, 3px)'); } },
+    { g: 'css', label: 'object-fit', hint: 'cropping images', fn: function () { return cssOk('object-fit', 'cover'); } },
+    { g: 'css', label: ':is() selector', hint: ':is(h1, h2)', fn: function () { return selectorOk(':is(body)'); } },
+    { g: 'css', label: ':has() selector', hint: 'li:has(input)', fn: function () { return selectorOk('body:has(div)'); } },
+    { g: 'css', label: 'Dark-mode query', hint: 'prefers-color-scheme', fn: function () { return mq('(prefers-color-scheme: light)') || mq('(prefers-color-scheme: dark)'); } },
+    { g: 'css', label: 'Container queries', hint: 'container-type', fn: function () { return cssOk('container-type', 'inline-size'); } }
+  ];
+
+  /* Run every check */
+  var results = [];
+  for (var i = 0; i < T.length; i++) {
+    var t = T[i], r;
+    try {
+      r = t.src ? runSyntax(i, t.src) : !!t.fn();
+    } catch (e) {
+      r = (t.src && syntaxMode === 'none') ? null : false;
+    }
+    results.push(r);
+  }
+
+  /* Render the lists */
+  var groups = ['js', 'web', 'css'];
+  var passed = 0, tested = 0;
+  try {
+    for (var gi = 0; gi < groups.length; gi++) {
+      var g = groups[gi], list = byId('list-' + g), gp = 0, gt = 0;
+      for (var j = 0; j < T.length; j++) {
+        if (T[j].g !== g) continue;
+        var res = results[j];
+        var li = make('li');
+        var txt = make('span', 'row-text');
+        txt.appendChild(make('span', 'row-label', T[j].label));
+        if (T[j].hint) txt.appendChild(make('span', 'row-hint', T[j].hint));
+        li.appendChild(txt);
+        var badge = make('span', 'badge ' + (res === true ? 'badge-yes' : res === false ? 'badge-no' : 'badge-na'),
+          res === true ? 'Yes' : res === false ? 'No' : 'n/a');
+        li.appendChild(badge);
+        list.appendChild(li);
+        if (res !== null) { gt++; if (res) gp++; }
+      }
+      byId('score-' + g).textContent = gp + ' of ' + gt + ' work';
+      passed += gp; tested += gt;
+    }
+  } catch (e) { showError('Could not draw the results: ' + e.message); }
+
+  /* Engine from the user agent */
+  var ua = navigator.userAgent || '';
+  var m, engineCode = 'U', engineName = 'Not recognized';
+  if ((m = ua.match(/Chrome\/(\d+)/))) { engineCode = 'C' + m[1]; engineName = 'Chromium ' + m[1]; }
+  else if ((m = ua.match(/Firefox\/(\d+)/))) { engineCode = 'F' + m[1]; engineName = 'Firefox ' + m[1]; }
+  else if ((m = ua.match(/AppleWebKit\/(\d+)/))) { engineCode = 'W' + m[1]; engineName = 'WebKit ' + m[1]; }
+  if (/Kindle/i.test(ua)) engineName += ' (Kindle)';
+
+  /* Pack results into base-32 letters, 5 checks per letter, first check first */
+  var ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  var bits = [];
+  for (var b = 0; b < results.length; b++) bits.push(results[b] === true ? 1 : 0);
+  while (bits.length % 5) bits.push(0);
+  var packed = '';
+  for (var k = 0; k < bits.length; k += 5) {
+    var v = 0;
+    for (var q = 0; q < 5; q++) v = v * 2 + bits[k + q];
+    packed += ALPHA.charAt(v);
+  }
+  var groupsOf4 = [];
+  for (var p4 = 0; p4 < packed.length; p4 += 4) groupsOf4.push(packed.substr(p4, 4));
+
+  /* Pen state feeds the end of the code */
+  var seen = { pen: false, touch: false, mouse: false };
+  var penMin = 2, penMax = -1;
+
+  function penSuffix() {
+    var s = '';
+    if (seen.pen) s += 'P' + (penMax - penMin > 0.05 ? '+' : '');
+    if (seen.touch) s += 'T';
+    if (seen.mouse) s += 'M';
+    return s;
+  }
+
+  var codeEl = byId('code');
+  var codeText = '';
+  function updateCode() {
+    codeText = engineCode + '-' + groupsOf4.join('-');
+    var flags = (syntaxMode === 'none' ? 'X' : '') + penSuffix();
+    if (flags) codeText += '/' + flags;
+    codeEl.textContent = codeText;
+  }
+  updateCode();
+  byId('score').textContent = passed + ' of ' + tested + ' work';
+  byId('codeNote').textContent = 'Type this code into your chat with Claude, or photograph this screen with your phone. Dashes and letter case do not matter. Drawing on the pen pad further down adds pen results after the slash.';
+
+  /* Copy, with a select-the-text fallback */
+  var copyBtn = byId('copy');
+  function selectCode() {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents(codeEl);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      copyBtn.textContent = 'Selected, copy it now';
+    } catch (e) { copyBtn.textContent = 'Copy not available'; }
+  }
+  copyBtn.onclick = function () {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(codeText).then(function () { copyBtn.textContent = 'Copied'; }, selectCode);
+        return;
+      }
+    } catch (e) {}
+    selectCode();
+  };
+
+  /* Browser and screen details */
+  var infoList = byId('info');
+  function addInfo(label, value, id) {
+    var li = make('li');
+    var txt = make('span', 'row-text');
+    txt.appendChild(make('span', 'row-label', label));
+    li.appendChild(txt);
+    var val = make('span', 'info-value', value);
+    if (id) val.id = id;
+    li.appendChild(val);
+    infoList.appendChild(li);
+  }
+  function round2(x) { return Math.round(x * 100) / 100; }
+  try {
+    addInfo('Engine', engineName);
+    addInfo('Page size (CSS pixels)', window.innerWidth + ' × ' + window.innerHeight);
+    addInfo('Pixel ratio', String(round2(window.devicePixelRatio || 1)));
+    addInfo('Screen', screen.width + ' × ' + screen.height);
+    addInfo('Color', mq('(monochrome)') ? 'Grayscale' : mq('(color)') ? 'Color' : 'Not reported');
+    addInfo('Screen refresh', mq('(update: slow)') ? 'Slow, e-ink style' : mq('(update: fast)') ? 'Fast' : mq('(update: none)') ? 'None' : 'Not reported');
+    addInfo('Main pointer', mq('(pointer: fine)') ? 'Fine, pen or mouse' : mq('(pointer: coarse)') ? 'Coarse, finger' : mq('(pointer: none)') ? 'None' : 'Not reported');
+    addInfo('Hover', mq('(hover: hover)') ? 'Yes' : mq('(hover: none)') ? 'No' : 'Not reported');
+    addInfo('Theme', mq('(prefers-color-scheme: dark)') ? 'Dark' : mq('(prefers-color-scheme: light)') ? 'Light' : 'Not reported');
+    addInfo('Language', navigator.language || 'Not reported');
+    var tz = 'Not reported';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch (e) {}
+    addInfo('Time zone', tz);
+    addInfo('Newer syntax tested by', syntaxMode === 'function' ? 'Function constructor' : syntaxMode === 'script' ? 'Script injection' : 'Could not test');
+    addInfo('Downloaded font', 'Checking…', 'fontStatus');
+    byId('ua').textContent = 'User agent: ' + (ua || 'not reported');
+  } catch (e) { showError('Could not read browser details: ' + e.message); }
+
+  function fontStatus() {
+    var out = 'Cannot tell';
+    try {
+      if (document.fonts && document.fonts.forEach) {
+        var found = false, loaded = false;
+        document.fonts.forEach(function (f) {
+          if (/Literata/i.test(f.family)) { found = true; if (f.status === 'loaded') loaded = true; }
+        });
+        out = loaded ? 'Loaded' : found ? 'Not loaded, fallback in use' : 'Blocked, fallback in use';
+      }
+    } catch (e) {}
+    var el = byId('fontStatus');
+    if (el) el.textContent = out;
+  }
+  try {
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) document.fonts.ready.then(fontStatus);
+  } catch (e) {}
+  window.addEventListener('load', fontStatus, false);
+  setTimeout(fontStatus, 4000);
+
+  /* Pen and touch pad. The readout updates at the start and end of each stroke only,
+     so the e-ink screen is not asked to redraw text on every point. */
+  var pad = byId('pad'), padOut = byId('padOut'), ctx = null;
+  try { ctx = pad.getContext && pad.getContext('2d'); } catch (e) {}
+  var drawing = false, last = null, count = 0, t0 = 0, strokes = 0, lastRate = 0;
+  var lastType = '', lastPressure = null, padWidth = 0;
+
+  function now() { return (window.performance && performance.now) ? performance.now() : new Date().getTime(); }
+  function inkColor() { try { return window.getComputedStyle(document.body).color; } catch (e) { return '#000000'; } }
+
+  function sizePad() {
+    if (!ctx) return;
+    var w = pad.parentNode.clientWidth;
+    if (!w) return;
+    padWidth = w;
+    var h = Math.max(200, Math.min(360, Math.round(w * 0.55)));
+    var ratio = window.devicePixelRatio || 1;
+    pad.width = Math.round(w * ratio);
+    pad.height = Math.round(h * ratio);
+    pad.style.height = h + 'px';
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = inkColor();
+    ctx.fillStyle = inkColor();
+  }
+
+  function widthFor(type, pr) { return (type === 'pen' && pr > 0) ? 1 + pr * 5 : 2.5; }
+
+  function note(type, pr) {
+    lastType = type || 'unknown';
+    if (seen.hasOwnProperty(type)) seen[type] = true;
+    lastPressure = (typeof pr === 'number') ? pr : null;
+    if (type === 'pen' && typeof pr === 'number' && pr > 0) {
+      if (pr < penMin) penMin = pr;
+      if (pr > penMax) penMax = pr;
+    }
+  }
+
+  function readout() {
+    var lines = [];
+    lines.push('Last input: ' + lastType + (lastPressure !== null ? ' · pressure ' + round2(lastPressure).toFixed(2) : ' · no pressure value'));
+    lines.push((lastRate ? 'About ' + lastRate + ' points per second' : 'Draw a longer line to measure speed') + ' · ' + strokes + (strokes === 1 ? ' stroke' : ' strokes'));
+    var kinds = [];
+    if (seen.pen) kinds.push('pen');
+    if (seen.touch) kinds.push('finger');
+    if (seen.mouse) kinds.push('mouse');
+    var pressure = seen.pen ? (penMax - penMin > 0.05 ? ' · pen pressure varies (' + round2(penMin).toFixed(2) + ' to ' + round2(penMax).toFixed(2) + ')' : ' · pen pressure does not vary') : '';
+    lines.push('Seen so far: ' + (kinds.length ? kinds.join(', ') : 'nothing') + pressure);
+    padOut.innerHTML = '';
+    for (var i = 0; i < lines.length; i++) padOut.appendChild(make('p', null, lines[i]));
+  }
+
+  function begin(type, x, y, pr) {
+    drawing = true; last = { x: x, y: y }; count = 1; t0 = now(); strokes++;
+    note(type, pr);
+    ctx.beginPath();
+    ctx.arc(x, y, widthFor(type, pr) / 2, 0, Math.PI * 2);
+    ctx.fill();
+    readout();
+  }
+  function extend(type, x, y, pr) {
+    if (!drawing) return;
+    count++;
+    note(type, pr);
+    ctx.lineWidth = widthFor(type, pr);
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    last = { x: x, y: y };
+  }
+  function finish() {
+    if (!drawing) return;
+    drawing = false;
+    var dt = (now() - t0) / 1000;
+    if (dt > 0.15 && count > 3) lastRate = Math.round(count / dt);
+    readout();
+    updateCode();
+  }
+  function rel(e) {
+    var r = pad.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  if (ctx) {
+    sizePad();
+    window.addEventListener('resize', function () {
+      if (pad.parentNode.clientWidth !== padWidth) sizePad();
+    }, false);
+
+    if (window.PointerEvent) {
+      pad.addEventListener('pointerdown', function (e) {
+        if (e.preventDefault) e.preventDefault();
+        try { pad.setPointerCapture(e.pointerId); } catch (x) {}
+        var pt = rel(e);
+        begin(e.pointerType, pt.x, pt.y, e.pressure);
+      }, false);
+      pad.addEventListener('pointermove', function (e) {
+        if (!drawing) return;
+        if (e.preventDefault) e.preventDefault();
+        var pt = rel(e);
+        extend(e.pointerType, pt.x, pt.y, e.pressure);
+      }, false);
+      pad.addEventListener('pointerup', finish, false);
+      pad.addEventListener('pointercancel', finish, false);
+    } else {
+      pad.addEventListener('touchstart', function (e) {
+        e.preventDefault();
+        var tt = e.changedTouches[0], pt = rel(tt);
+        begin('touch', pt.x, pt.y, tt.force);
+      }, false);
+      pad.addEventListener('touchmove', function (e) {
+        e.preventDefault();
+        var tt = e.changedTouches[0], pt = rel(tt);
+        extend('touch', pt.x, pt.y, tt.force);
+      }, false);
+      pad.addEventListener('touchend', finish, false);
+      pad.addEventListener('touchcancel', finish, false);
+      pad.addEventListener('mousedown', function (e) { var pt = rel(e); begin('mouse', pt.x, pt.y, null); }, false);
+      pad.addEventListener('mousemove', function (e) { if (drawing) { var pt = rel(e); extend('mouse', pt.x, pt.y, null); } }, false);
+      window.addEventListener('mouseup', finish, false);
+    }
+
+    byId('padClear').onclick = function () {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, pad.width, pad.height);
+      ctx.restore();
+    };
+  } else {
+    padOut.innerHTML = '';
+    padOut.appendChild(make('p', null, 'Canvas drawing is not available in this browser.'));
+  }
+})();
+</script>
+</body>
+</html>
